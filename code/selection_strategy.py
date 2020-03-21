@@ -57,14 +57,14 @@ class SelectionFeatures:
         self.type_model = type_model
         self.logger = logging.getLogger(f"select_features_with{self.type_model}")
 
-    def select_feature_mix(self, data, predictor_cols, target_col):
+    def select_features_mix(self, data, predictor_cols, target_col):
         stats_model = self.type_model(data, predictor_cols, target_col)
         current_list = []
         current_result_fit = self.fit_model(stats_model, current_list)
         candidate_cols = list(predictor_cols)
         return self.feature_selection_step(self.mix_step, stats_model, current_list, current_result_fit, candidate_cols)
 
-    def select_feature_forward(self, data, predictor_cols, target_col):
+    def select_features_forward(self, data, predictor_cols, target_col):
         stats_model = self.type_model(data, predictor_cols, target_col)
         current_list = []
         current_result_fit = self.fit_model(stats_model, current_list)
@@ -75,6 +75,7 @@ class SelectionFeatures:
         stats_model = self.type_model(data, predictor_cols, target_col)
         current_list = predictor_cols
         current_result_fit = self.fit_model(stats_model, current_list)
+        print(current_list)
         candidate_cols = list(predictor_cols)
         return self.feature_selection_step(self.backward_step, stats_model, current_list, current_result_fit, candidate_cols)
 
@@ -82,6 +83,7 @@ class SelectionFeatures:
     def feature_selection_step(self, selection_func, stats_model, current_list, current_result_fit, candidate_cols):
         while True:
             select_cols, select_result_fit = selection_func(stats_model, current_list, current_result_fit, candidate_cols) 
+            print("select_cols = ", select_cols)
             if select_cols is None:
                 break
             current_list, current_result_fit = select_cols, select_result_fit
@@ -93,11 +95,15 @@ class SelectionFeatures:
             forward_cols, forward_result_fit = self.forward_step(stats_model, current_list, current_result_fit, candidate_cols)
             if forward_cols is None:
                 return None, None
-            backward_cols, backward_result_fit = self.backward_step(stats_model, forward_cols, forward_result_fit, candidate_cols)
-            if backward_cols is None:
-                return forward_cols, forward_result_fit
-            else:
-                return backward_cols, backward_result_fit
+            while True:
+                backward_cols, backward_result_fit = self.backward_step(stats_model, forward_cols, forward_result_fit, candidate_cols)
+                if backward_cols is None:
+                    break;
+                else:
+                    forward_cols, forward_result_fit = backward_cols, backward_result_fit
+            return forward_cols, forward_result_fit
+        else:
+            return None, None
 
     def forward_step(self, stats_model, current_list, current_result_fit, candidate_cols):
         candidates = []
@@ -117,24 +123,30 @@ class SelectionFeatures:
     def backward_step(self, stats_model, current_list, current_result_fit, candidate_cols):
         result_list = list(current_list)
         is_remove = False
+        candidates = []
         for col in current_list:
-            criterion_value = self.get_criterion_value(stats_model, current_result_fit, col)
-            if not self.satisfy_lowerber(criterion_value):
-                result_list.remove(col)
-                self.logger.info(f"Remove feature {col} with avg p_valuue = {criterion_value}")
-                is_remove = True
-        if is_remove:
-            return result_list, self.fit_model(stats_model, result_list)
+            test_list = list(current_list)
+            test_list.remove(col)
+            result_fit = self.fit_model(stats_model, test_list)
+            if result_fit is not None:
+                candidates.append((col, result_fit))
+        if len(candidates) == 0:
+            return None, None
+        best_col, best_result_fit = self.select_best_from(stats_model, candidates)
+        print("best_col = " , best_col)
+        if self.first_result_better(stats_model, best_result_fit, current_result_fit):
+            self.logger.info(f"Remove feature {best_col} with imporve rss = {stats_model.getRSS(best_result_fit)}")
+            current_list.remove(best_col)
+            return current_list, best_result_fit
         else:
             return None, None
 
     def fit_model(self, stats_model, selected_cols):
         if len(selected_cols) == 0:
             return None
-        try:
-            model = stats_model.fit(selected_cols)
-        except:
-            model = None
+        model = stats_model.fit(selected_cols)
+        # except:
+        #     model = None
         return model
 
     def select_best_from(self, stats_model, candidates):
