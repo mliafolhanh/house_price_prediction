@@ -21,10 +21,14 @@ class DataFrameImputer(TransformerMixin):
         is_category = self.find_list_category_columns(X)
         self.fill = pd.Series([X[c].value_counts().index[0] if is_category[c] else X[c].mean() 
                              for c in X.columns], index=X.columns)
+        #special case
+        self.fill.loc['Alley'] = 'None'
 
     def fitRemove(self, X, y = None):
         percent_null = X.isnull().sum() / X.shape[0]
-        self.remove_cols = percent_null[percent_null > 0.75].index
+        self.remove_cols = list(percent_null[percent_null > 0.75].index)
+        #special case
+        self.remove_cols.remove('Alley')
 
     def fit(self, X, y = None):
         self.fitRemove(X, y)

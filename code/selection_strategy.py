@@ -38,21 +38,20 @@ class ModelOLSStats(ModelAbstract):
     def getRSS(self, result_fit):
         if result_fit is None:
             return float('inf')
-        return result_fit.mse_resid
+        return result_fit.ssr
 
     def getPValue(self, result_fit, col):
         pattern = f'{col}'
         pvalues = result_fit.pvalues
-        sumpvalue = 0.0
+        minpvalue = float('inf')
         npvalue = 0.0
         for col in pvalues.index:
             if col.find(pattern) >= 0:
-                sumpvalue += pvalues[col]
-                npvalue += 1.0
-        return sumpvalue / npvalue
+                minpvalue = min(minpvalue, pvalues[col])
+        return minpvalue
 
 class SelectionFeatures:
-    min_pvalue = 0.05
+    min_pvalue = 0.01
     def __init__(self, type_model):
         self.type_model = type_model
         self.logger = logging.getLogger(f"select_features_with{self.type_model}")
@@ -81,13 +80,15 @@ class SelectionFeatures:
 
 
     def feature_selection_step(self, selection_func, stats_model, current_list, current_result_fit, candidate_cols):
+        results = []
         while True:
             select_cols, select_result_fit = selection_func(stats_model, current_list, current_result_fit, candidate_cols) 
             print("select_cols = ", select_cols)
             if select_cols is None:
                 break
+            results.append((current_list, current_result_fit))
             current_list, current_result_fit = select_cols, select_result_fit
-        return current_list, current_result_fit
+        return results
 
 
     def mix_step(self, stats_model, current_list, current_result_fit, candidate_cols):
@@ -120,26 +121,43 @@ class SelectionFeatures:
         else:
             return None, None
 
+    # def backward_step(self, stats_model, current_list, current_result_fit, candidate_cols):
+    #     result_list = list(current_list)
+    #     is_remove = False
+    #     candidates = []
+    #     for col in current_list:
+    #         test_list = list(current_list)
+    #         test_list.remove(col)
+    #         result_fit = self.fit_model(stats_model, test_list)
+    #         if result_fit is not None:
+    #             candidates.append((col, result_fit))
+    #     if len(candidates) == 0:
+    #         return None, None
+    #     best_col, best_result_fit = self.select_best_from(stats_model, candidates)
+    #     print("best_col = " , best_col)
+    #     if self.first_result_better(stats_model, best_result_fit, current_result_fit):
+    #         self.logger.info(f"Remove feature {best_col} with imporve rss = {stats_model.getRSS(best_result_fit)}")
+    #         current_list.remove(best_col)
+    #         return current_list, best_result_fit
+    #     else:
+    #         return None, None
+
     def backward_step(self, stats_model, current_list, current_result_fit, candidate_cols):
         result_list = list(current_list)
         is_remove = False
         candidates = []
         for col in current_list:
-            test_list = list(current_list)
-            test_list.remove(col)
-            result_fit = self.fit_model(stats_model, test_list)
-            if result_fit is not None:
-                candidates.append((col, result_fit))
-        if len(candidates) == 0:
+            crit = self.get_criterion_value(stats_model, current_result_fit, col)
+            if not self.satisfy_lowerber(crit):
+                self.logger.info(f"Remove feature {col} with imporve min_pvalue = {crit}")
+                result_list.remove(col)
+                is_remove = True
+        if not is_remove:
             return None, None
-        best_col, best_result_fit = self.select_best_from(stats_model, candidates)
-        print("best_col = " , best_col)
-        if self.first_result_better(stats_model, best_result_fit, current_result_fit):
-            self.logger.info(f"Remove feature {best_col} with imporve rss = {stats_model.getRSS(best_result_fit)}")
-            current_list.remove(best_col)
-            return current_list, best_result_fit
-        else:
-            return None, None
+        result_fit = self.fit_model(stats_model, result_list)
+        self.logger.info(f"After remove, rss = {stats_model.getRSS(result_fit)}")
+        return result_list, result_fit
+
 
     def fit_model(self, stats_model, selected_cols):
         if len(selected_cols) == 0:
@@ -164,6 +182,9 @@ class SelectionFeatures:
 
     def satisfy_lowerber(self, criterion_value):
         return criterion_value < SelectionFeatures.min_pvalue
+
+
+
 
 
             
