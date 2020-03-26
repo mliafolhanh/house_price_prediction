@@ -10,7 +10,7 @@ class SMWrapper(BaseEstimator, RegressorMixin):
 
     def fit(self, X, y = None):
         self.model_ = self.model_class(X, self.predictor_cols, self.target_col)
-        self.results_ = self.model_.fit(select_cols)
+        self.results_ = self.model_.fit(self.select_cols)
 
     def predict(self, X):
         return self.results_.predict(X[self.select_cols])

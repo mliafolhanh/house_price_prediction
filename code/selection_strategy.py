@@ -81,12 +81,14 @@ class SelectionFeatures:
 
     def feature_selection_step(self, selection_func, stats_model, current_list, current_result_fit, candidate_cols):
         results = []
-        while True:
+        cnt = 0
+        while cnt < 10:
+            cnt += 1
             select_cols, select_result_fit = selection_func(stats_model, current_list, current_result_fit, candidate_cols) 
             print("select_cols = ", select_cols)
             if select_cols is None:
                 break
-            results.append((current_list, current_result_fit))
+            results.append((select_cols, select_result_fit))
             current_list, current_result_fit = select_cols, select_result_fit
         return results
 
