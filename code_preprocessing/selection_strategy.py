@@ -1,9 +1,10 @@
 import scipy.stats as stats
 import numpy as np
 import logging
-from statsmodels.formula.api import ols
 import re
+from statsmodels.formula.api import ols
 from statsmodels.stats.api import anova_lm
+
 class ModelAbstract:
     def __init__(self, type_model):
         pass
@@ -91,7 +92,7 @@ class SelectionFeatures:
             while True:
                 backward_cols, backward_result_fit = self.backward_step(stats_model, forward_cols, forward_result_fit, candidate_cols)
                 if backward_cols is None:
-                    break;
+                    break
                 else:
                     forward_cols, forward_result_fit = backward_cols, backward_result_fit
             return forward_cols, forward_result_fit
@@ -155,7 +156,6 @@ class SelectionFeatures:
         self.logger.info(f"After remove, rss = {stats_model.getRSS(result_fit)}")
         return result_list, result_fit
 
-
     def fit_model(self, stats_model, selected_cols):
         if len(selected_cols) == 0:
             return None
@@ -179,12 +179,3 @@ class SelectionFeatures:
 
     def satisfy_lowerber(self, criterion_value):
         return criterion_value < SelectionFeatures.min_pvalue
-
-
-
-
-
-            
-
-        
-

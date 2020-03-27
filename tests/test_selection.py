@@ -3,19 +3,23 @@ import pandas as pd
 import os
 import sys
 import logging
-from selection_strategy import *
-from logging_utils import setup_default_logging
-from preprocess import *
-from cv_model import *
+from code_preprocessing.selection_strategy import *
+from code_preprocessing.logging_utils import setup_default_logging
+from code_preprocessing.preprocess import *
+from code_preprocessing.cv_model import *
+from code_preprocessing.datasets import read_data
 from sklearn.model_selection import cross_val_score, ShuffleSplit
 import numpy as np
 import pickle
 setup_default_logging()
 logger = logging.getLogger("test_selection")
-def read_data(path_file):
-    train_pd = pd.read_csv(path_file)
-    train_pd = train_pd.rename(columns={"1stFlrSF": "FirstFlrSF", "2ndFlrSF": "SecondFlrSF", "3SsnPorch": "ThirdSsnPorch"})
-    return train_pd
+
+# def read_data(path_file):
+#     """This function will be handled in the dataset module."""
+#     train_pd = pd.read_csv(path_file)
+#     train_pd = train_pd.rename(columns={"1stFlrSF": "FirstFlrSF", "2ndFlrSF": "SecondFlrSF", "3SsnPorch": "ThirdSsnPorch"})
+#     return train_pd
+
 def preprocess(train_pd):
     imputer = DataFrameImputer()
     return imputer.fit(train_pd)
@@ -58,8 +62,7 @@ def cv_process(train_pd, list_cols_combine):
 
     return min(selected_cols, key=lambda v : v[2])
     
-
-train_pd = read_data("data/train.csv")
+train_pd = read_data('train.csv')
 imputer = preprocess(train_pd)
 train_pd = imputer.transform(train_pd)
 list_cols_combine = select_features_step(train_pd)
@@ -68,11 +71,9 @@ final_cols, final_model = selection[:2]
 
 logger.info(f"Final results: With cols = {selection[0]} - number_features = {len(selection[0])} - cv_score: {np.sqrt(selection[2])}")
 
-test_pd = read_data("data/test.csv")
+test_pd = read_data("test.csv")
 test_pd = imputer.transform(test_pd)
 
 test_result = final_model.predict(test_pd[final_cols]).rename(train_pd.columns[-1])
 test_result =  pd.concat([test_pd['Id'], test_result], axis = 1)
-test_result.to_csv("outputs/ols_output_forward.csv", index=False)
-
-
+test_result.to_csv(os.path.dirname(os.path.dirname(__file__)) + "/outputs/ols_output_forward.csv", index=False)
