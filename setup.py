@@ -1,4 +1,8 @@
+import os
 from setuptools import setup, find_packages
+
+path = os.path.abspath(os.path.dirname(__file__))
+readme = open(path + "/docs/README.md")
 
 setup(name='house_price_prediction',
       version='0.1.0',
@@ -7,7 +11,7 @@ setup(name='house_price_prediction',
       author='hphan',
       author_email='mliafol.phan86@gmali.com',
       license='',
-      packages=find_packages(),
+      packages=find_packages(exclude=["tests", "docs", ".gitignore"]),
       classifiers = [
 		  "Programming Language :: Python :: 3",
       ],
