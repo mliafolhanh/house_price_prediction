@@ -13,7 +13,7 @@ pipenv install -e .
 ```
 
 In test files, include this line to import the package.
-```
+```python
 from code_preprocessing.module_name import class, function
 ```
 
