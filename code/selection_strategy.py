@@ -3,6 +3,7 @@ import numpy as np
 import logging
 from statsmodels.formula.api import ols
 import re
+from statsmodels.stats.api import anova_lm
 class ModelAbstract:
     def __init__(self, type_model):
         pass
@@ -17,22 +18,16 @@ class ModelAbstract:
         pass
 
 class ModelOLSStats(ModelAbstract):
-    def __init__(self, data, predictor_cols, target_col):
+    def __init__(self, data, predictor_cols, target_col, col_levels):
         self.data = data
         self.predictor_cols = predictor_cols
         self.target_col = target_col
-        self.is_category = self.find_list_category_columns()
-
-    def find_list_category_columns(self):
-        uniq_count = self.data.nunique()
-        category_crit = int(np.quantile(uniq_count, 0.75))
-        is_category = uniq_count <= category_crit
-        return is_category
+        self.col_levels = col_levels
 
     def fit(self, predictors_col):
         formula = f'{self.target_col} ~ '
-        predictors_pattern = [col if self.is_category[col] else f'C({col})' for col in predictors_col]
-        formula = f'{self.target_col} ~ ' + '+'.join(predictors_col)
+        predictors_pattern = [col if len(self.col_levels[col]) == 0 else f'C({col}, levels={self.col_levels[col]})' for col in predictors_col]
+        formula = f'{self.target_col} ~ ' + '+'.join(predictors_pattern)
         return ols(formula, self.data).fit()
 
     def getRSS(self, result_fit):
@@ -40,15 +35,10 @@ class ModelOLSStats(ModelAbstract):
             return float('inf')
         return result_fit.ssr
 
-    def getPValue(self, result_fit, col):
-        pattern = f'{col}'
-        pvalues = result_fit.pvalues
-        minpvalue = float('inf')
-        npvalue = 0.0
-        for col in pvalues.index:
-            if col.find(pattern) >= 0:
-                minpvalue = min(minpvalue, pvalues[col])
-        return minpvalue
+    def getPValue(self, result_fit1, result_fit2):
+        anova_table = anova_lm(result_fit1, result_fit2)
+        return anova_table["Pr(>F)"][1]
+
 
 class SelectionFeatures:
     min_pvalue = 0.01
@@ -56,22 +46,22 @@ class SelectionFeatures:
         self.type_model = type_model
         self.logger = logging.getLogger(f"select_features_with{self.type_model}")
 
-    def select_features_mix(self, data, predictor_cols, target_col):
-        stats_model = self.type_model(data, predictor_cols, target_col)
+    def select_features_mix(self, data, predictor_cols, target_col, col_levels):
+        stats_model = self.type_model(data, predictor_cols, target_col, col_levels)
         current_list = []
         current_result_fit = self.fit_model(stats_model, current_list)
         candidate_cols = list(predictor_cols)
         return self.feature_selection_step(self.mix_step, stats_model, current_list, current_result_fit, candidate_cols)
 
-    def select_features_forward(self, data, predictor_cols, target_col):
-        stats_model = self.type_model(data, predictor_cols, target_col)
+    def select_features_forward(self, data, predictor_cols, target_col, col_levels):
+        stats_model = self.type_model(data, predictor_cols, target_col, col_levels)
         current_list = []
         current_result_fit = self.fit_model(stats_model, current_list)
         candidate_cols = list(predictor_cols)
         return self.feature_selection_step(self.forward_step, stats_model, current_list, current_result_fit, candidate_cols)
 
-    def select_features_backward(self, data, predictor_cols, target_col):
-        stats_model = self.type_model(data, predictor_cols, target_col)
+    def select_features_backward(self, data, predictor_cols, target_col, col_levels):
+        stats_model = self.type_model(data, predictor_cols, target_col, col_levels)
         current_list = predictor_cols
         current_result_fit = self.fit_model(stats_model, current_list)
         print(current_list)
@@ -82,7 +72,7 @@ class SelectionFeatures:
     def feature_selection_step(self, selection_func, stats_model, current_list, current_result_fit, candidate_cols):
         results = []
         cnt = 0
-        while cnt < 10:
+        while True:
             cnt += 1
             select_cols, select_result_fit = selection_func(stats_model, current_list, current_result_fit, candidate_cols) 
             print("select_cols = ", select_cols)
@@ -148,8 +138,13 @@ class SelectionFeatures:
         result_list = list(current_list)
         is_remove = False
         candidates = []
+        if len(current_list) == 1:
+            return None, None
         for col in current_list:
-            crit = self.get_criterion_value(stats_model, current_result_fit, col)
+            test_list = list(current_list)
+            test_list.remove(col)
+            result_fit_without_col = self.fit_model(stats_model, test_list)
+            crit = self.get_criterion_value(stats_model, result_fit_without_col, current_result_fit)
             if not self.satisfy_lowerber(crit):
                 self.logger.info(f"Remove feature {col} with imporve min_pvalue = {crit}")
                 result_list.remove(col)
@@ -179,8 +174,8 @@ class SelectionFeatures:
     def first_result_better(self, stats_model, result1, result2):
         return stats_model.getRSS(result1) < stats_model.getRSS(result2)
 
-    def get_criterion_value(self, stats_model, result_fit, col):
-        return stats_model.getPValue(result_fit, col)
+    def get_criterion_value(self, stats_model, result_fit_without_col, result_fit):
+        return stats_model.getPValue(result_fit_without_col, result_fit)
 
     def satisfy_lowerber(self, criterion_value):
         return criterion_value < SelectionFeatures.min_pvalue
