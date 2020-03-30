@@ -9,6 +9,7 @@ from code_preprocessing.preprocess import *
 from code_preprocessing.cv_model import *
 from code_preprocessing.datasets import read_data
 from sklearn.model_selection import cross_val_score, ShuffleSplit
+from sklearn.metrics import mean_squared_log_error, make_scorer
 import numpy as np
 import pickle
 setup_default_logging()
@@ -52,11 +53,11 @@ def cv_process(train_pd, list_cols_combine):
     target_col = train_pd.columns[-1]
     selected_cols = []
     col_levels = find_col_levels(train_pd[predictor_cols])
-    print(col_levels["RoofMatl"])
     for cols, model in list_cols_combine:
         cv_model = SMWrapper(ModelOLSStats, predictor_cols, target_col, cols, col_levels)
         cv = ShuffleSplit(n_splits=10, random_state=0)
-        cv_score = -np.mean(cross_val_score(cv_model, train_pd, train_pd[target_col], cv=cv, scoring="neg_mean_squared_error"))
+        score = make_scorer(mean_squared_log_error, greater_is_better=False)
+        cv_score = -np.mean(cross_val_score(cv_model, train_pd, train_pd[target_col], cv=cv, scoring=score))
         logger.info(f"With {cols} - number_features = {len(cols)} - cv_score: {cv_score}")
         selected_cols.append((cols, model, cv_score))
 

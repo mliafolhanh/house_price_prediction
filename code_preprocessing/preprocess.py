@@ -1,6 +1,8 @@
 from sklearn.base import TransformerMixin
 import pandas as pd
 import numpy as np
+max_ratio_null = 0.75
+max_ratio_cat = 0.95
 class DataFrameImputer(TransformerMixin):
     def __init__(self):
         """Impute missing values.
@@ -36,8 +38,13 @@ class DataFrameImputer(TransformerMixin):
         self.fill.loc['Alley'] = 'None'
 
     def fitRemove(self, X, y = None):
+        self.is_category = self.find_list_category_columns(X)
         percent_null = X.isnull().sum() / X.shape[0]
-        self.remove_cols = list(percent_null[percent_null > 0.75].index)
+        self.remove_cols = list(percent_null[percent_null > max_ratio_null].index)
+        for col in X.columns:
+            if self.is_category[col] and col not in self.remove_cols:
+                if (X[col].value_counts().iloc[0] / X.shape[0]) > max_ratio_cat:
+                    self.remove_cols.append(col)
         #special case
         self.remove_cols.remove('Alley')
 

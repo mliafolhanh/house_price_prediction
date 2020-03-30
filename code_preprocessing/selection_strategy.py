@@ -4,6 +4,7 @@ import logging
 import re
 from statsmodels.formula.api import ols
 from statsmodels.stats.api import anova_lm
+from sklearn.metrics import mean_squared_log_error
 
 class ModelAbstract:
     def __init__(self, type_model):
@@ -12,7 +13,7 @@ class ModelAbstract:
     def fit(self, predictors_col, target_col):
         pass
 
-    def getRSS(self, result_fit):
+    def score(self, result_fit):
         pass
 
     def getPValue(self, result_fit, col):
@@ -31,10 +32,17 @@ class ModelOLSStats(ModelAbstract):
         formula = f'{self.target_col} ~ ' + '+'.join(predictors_pattern)
         return ols(formula, self.data).fit()
 
-    def getRSS(self, result_fit):
+    def score(self, result_fit):
         if result_fit is None:
             return float('inf')
         return result_fit.ssr
+
+    def score(self, result_fit):
+        if result_fit is None:
+            return float('inf')
+        actual_value = self.data[self.target_col]
+        predict_value = result_fit.predict(self.data)
+        return mean_squared_log_error(actual_value, predict_value)
 
     def getPValue(self, result_fit1, result_fit2):
         anova_table = anova_lm(result_fit1, result_fit2)
@@ -108,7 +116,7 @@ class SelectionFeatures:
                 candidates.append((col, result_fit))
         best_col, best_result_fit = self.select_best_from(stats_model, candidates)
         if self.first_result_better(stats_model, best_result_fit, current_result_fit):
-            self.logger.info(f"Select feature {best_col} with imporve rss = {stats_model.getRSS(best_result_fit)}")
+            self.logger.info(f"Select feature {best_col} with imporve rss = {stats_model.score(best_result_fit)}")
             candidate_cols.remove(best_col)
             return current_list + [best_col], best_result_fit
         else:
@@ -129,7 +137,7 @@ class SelectionFeatures:
     #     best_col, best_result_fit = self.select_best_from(stats_model, candidates)
     #     print("best_col = " , best_col)
     #     if self.first_result_better(stats_model, best_result_fit, current_result_fit):
-    #         self.logger.info(f"Remove feature {best_col} with imporve rss = {stats_model.getRSS(best_result_fit)}")
+    #         self.logger.info(f"Remove feature {best_col} with imporve rss = {stats_model.score(best_result_fit)}")
     #         current_list.remove(best_col)
     #         return current_list, best_result_fit
     #     else:
@@ -153,7 +161,7 @@ class SelectionFeatures:
         if not is_remove:
             return None, None
         result_fit = self.fit_model(stats_model, result_list)
-        self.logger.info(f"After remove, rss = {stats_model.getRSS(result_fit)}")
+        self.logger.info(f"After remove, rss = {stats_model.score(result_fit)}")
         return result_list, result_fit
 
     def fit_model(self, stats_model, selected_cols):
@@ -172,7 +180,7 @@ class SelectionFeatures:
         return select_col, select_result_fit
 
     def first_result_better(self, stats_model, result1, result2):
-        return stats_model.getRSS(result1) < stats_model.getRSS(result2)
+        return stats_model.score(result1) < stats_model.score(result2)
 
     def get_criterion_value(self, stats_model, result_fit_without_col, result_fit):
         return stats_model.getPValue(result_fit_without_col, result_fit)
