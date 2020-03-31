@@ -12,7 +12,6 @@ class RankColumns:
             return float('inf')
         mode = train_pd[col_name].value_counts().index[0]
         new_train_pd = train_pd[train_pd[col_name] != mode]
-        print(new_train_pd.shape)
         result_ols = self.getOLS(new_train_pd, col_name)
         return result_ols.f_pvalue
 
