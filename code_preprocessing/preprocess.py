@@ -1,4 +1,5 @@
 from sklearn.base import TransformerMixin
+from code_preprocessing.rank_columns import RankColumns
 import pandas as pd
 import numpy as np
 max_ratio_null = 0.75
@@ -34,19 +35,35 @@ class DataFrameImputer(TransformerMixin):
         self.col_levels = self.find_col_levels(X)
         self.fill = pd.Series([X[c].value_counts().index[0] if self.is_category[c] else X[c].mean() 
                              for c in X.columns], index=X.columns)
+        self.col_exceptions = ['Alley', 'FireplaceQu', 'GarageType', 'GarageFinish', 'GarageQual', 'GarageCond',
+                               'PoolQC', 'Fence', 'MiscFeature', 'BsmtQual', 'BsmtCond', 'BsmtExposure', 'BsmtFinType1', 'BsmtFinType2']
         #special case
-        self.fill.loc['Alley'] = 'None'
+        self.fill.loc[self.col_exceptions] = 'None'
+
+    def fitRemoveCategory(self, X, y):
+        min_fpvalue = 0.05
+        self.remove_categorys = []
+        for col in X.columns:
+            if self.is_category[col] and col not in self.remove_cols:
+                if (X[col].value_counts().iloc[0] / X.shape[0]) > max_ratio_cat:
+                    self.remove_categorys.append(col)
+        column_ranker = RankColumns()
+        for col in self.remove_categorys:
+            if column_ranker.cal_fpvalue_special_col(X, col) < min_fpvalue:
+                self.remove_categorys.remove(col)
 
     def fitRemove(self, X, y = None):
         self.is_category = self.find_list_category_columns(X)
         percent_null = X.isnull().sum() / X.shape[0]
         self.remove_cols = list(percent_null[percent_null > max_ratio_null].index)
-        for col in X.columns:
-            if self.is_category[col] and col not in self.remove_cols:
-                if (X[col].value_counts().iloc[0] / X.shape[0]) > max_ratio_cat:
-                    self.remove_cols.append(col)
-        #special case
-        self.remove_cols.remove('Alley')
+        self.col_exceptions = ['Alley', 'FireplaceQu', 'GarageType', 'GarageFinish', 'GarageQual', 'GarageCond',
+                               'PoolQC', 'Fence', 'MiscFeature', 'BsmtQual', 'BsmtCond', 'BsmtExposure', 'BsmtFinType1', 'BsmtFinType2']
+        for col in self.col_exceptions:
+            if col in self.remove_cols:
+                self.remove_cols.remove(col)
+        self.fitRemoveCategory(X, y)
+        self.remove_cols += self.remove_categorys
+
 
     def fit(self, X, y = None):
         self.fitRemove(X, y)

@@ -15,12 +15,6 @@ import pickle
 setup_default_logging()
 logger = logging.getLogger("test_selection")
 
-# def read_data(path_file):
-#     """This function will be handled in the dataset module."""
-#     train_pd = pd.read_csv(path_file)
-#     train_pd = train_pd.rename(columns={"1stFlrSF": "FirstFlrSF", "2ndFlrSF": "SecondFlrSF", "3SsnPorch": "ThirdSsnPorch"})
-#     return train_pd
-
 def preprocess(train_pd):
     imputer = DataFrameImputer()
     return imputer.fit(train_pd)

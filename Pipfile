@@ -7,6 +7,7 @@ verify_ssl = true
 
 [packages]
 house-price-prediction = {editable = true,path = "."}
+seaborn = "*"
 
 [requires]
 python_version = "3.6"
