@@ -7,8 +7,11 @@ from statsmodels.stats.api import anova_lm
 from sklearn.metrics import mean_squared_log_error
 
 class ModelAbstract:
-    def __init__(self, type_model):
-        pass
+    def __init__(self, data, predictor_cols, target_col, col_levels):
+        self.data = data
+        self.predictor_cols = predictor_cols
+        self.target_col = target_col
+        self.col_levels = col_levels
 
     def fit(self, predictors_col, target_col):
         pass
@@ -16,15 +19,13 @@ class ModelAbstract:
     def score(self, result_fit):
         pass
 
-    def getPValue(self, result_fit, col):
+    def getPValue(self, result_fit1, result_fit2):
         pass
 
 class ModelOLSStats(ModelAbstract):
-    def __init__(self, data, predictor_cols, target_col, col_levels):
-        self.data = data
-        self.predictor_cols = predictor_cols
-        self.target_col = target_col
-        self.col_levels = col_levels
+    def __init__(self, data , predictor_cols, target_col, col_levels):
+        super().__init__(data , predictor_cols, target_col, col_levels)
+        self.name = 'stats_ols'
 
     def fit(self, predictors_col):
         formula = f'{self.target_col} ~ '
@@ -51,31 +52,36 @@ class ModelOLSStats(ModelAbstract):
 
 class SelectionFeatures:
     min_pvalue = 0.01
-    def __init__(self, type_model):
-        self.type_model = type_model
-        self.logger = logging.getLogger(f"select_features_with{self.type_model}")
+    def __init__(self, model_):
+        self.model_ = model_;
+        self.logger = logging.getLogger(f"select_features_with{model_.name}")
 
-    def select_features_mix(self, data, predictor_cols, target_col, col_levels):
-        stats_model = self.type_model(data, predictor_cols, target_col, col_levels)
+    def select_features(self, strategy):
+        if strategy == "mix":
+            return self.select_features_mix()
+        elif strategy == "forward":
+            return self.select_features_forward()
+        elif strategy == "backward":
+            return self.select_features_forward()
+
+
+    def select_features_mix(self):
         current_list = []
-        current_result_fit = self.fit_model(stats_model, current_list)
-        candidate_cols = list(predictor_cols)
-        return self.feature_selection_step(self.mix_step, stats_model, current_list, current_result_fit, candidate_cols)
+        current_result_fit = self.fit_model(self.model_, current_list)
+        candidate_cols = list(self.model_.predictor_cols)
+        return self.feature_selection_step(self.mix_step, self.model_, current_list, current_result_fit, candidate_cols)
 
-    def select_features_forward(self, data, predictor_cols, target_col, col_levels):
-        stats_model = self.type_model(data, predictor_cols, target_col, col_levels)
+    def select_features_forward(self):
         current_list = []
-        current_result_fit = self.fit_model(stats_model, current_list)
-        candidate_cols = list(predictor_cols)
-        return self.feature_selection_step(self.forward_step, stats_model, current_list, current_result_fit, candidate_cols)
+        current_result_fit = self.fit_model(self.model_, current_list)
+        candidate_cols = list(self.model_.predictor_cols)
+        return self.feature_selection_step(self.forward_step, self.model_, current_list, current_result_fit, candidate_cols)
 
-    def select_features_backward(self, data, predictor_cols, target_col, col_levels):
-        stats_model = self.type_model(data, predictor_cols, target_col, col_levels)
-        current_list = predictor_cols
-        current_result_fit = self.fit_model(stats_model, current_list)
-        print(current_list)
-        candidate_cols = list(predictor_cols)
-        return self.feature_selection_step(self.backward_step, stats_model, current_list, current_result_fit, candidate_cols)
+    def select_features_backward(self):
+        current_list = []
+        current_result_fit = self.fit_model(self.model_, current_list)
+        candidate_cols = list(self.model_.predictor_cols)
+        return self.feature_selection_step(self.backward_step, self.model_, current_list, current_result_fit, candidate_cols)
 
 
     def feature_selection_step(self, selection_func, stats_model, current_list, current_result_fit, candidate_cols):
@@ -122,27 +128,6 @@ class SelectionFeatures:
         else:
             return None, None
 
-    # def backward_step(self, stats_model, current_list, current_result_fit, candidate_cols):
-    #     result_list = list(current_list)
-    #     is_remove = False
-    #     candidates = []
-    #     for col in current_list:
-    #         test_list = list(current_list)
-    #         test_list.remove(col)
-    #         result_fit = self.fit_model(stats_model, test_list)
-    #         if result_fit is not None:
-    #             candidates.append((col, result_fit))
-    #     if len(candidates) == 0:
-    #         return None, None
-    #     best_col, best_result_fit = self.select_best_from(stats_model, candidates)
-    #     print("best_col = " , best_col)
-    #     if self.first_result_better(stats_model, best_result_fit, current_result_fit):
-    #         self.logger.info(f"Remove feature {best_col} with imporve rss = {stats_model.score(best_result_fit)}")
-    #         current_list.remove(best_col)
-    #         return current_list, best_result_fit
-    #     else:
-    #         return None, None
-
     def backward_step(self, stats_model, current_list, current_result_fit, candidate_cols):
         result_list = list(current_list)
         is_remove = False
@@ -168,8 +153,6 @@ class SelectionFeatures:
         if len(selected_cols) == 0:
             return None
         model = stats_model.fit(selected_cols)
-        # except:
-        #     model = None
         return model
 
     def select_best_from(self, stats_model, candidates):

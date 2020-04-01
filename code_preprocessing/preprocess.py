@@ -61,12 +61,13 @@ class RemovelColsImputer(TransformerMixin):
         for col in X.columns:
             if self.is_category[col]:
                 if (X[col].value_counts().iloc[0] / X.shape[0]) > max_ratio_cat:
+
                     self.remove_categorys.append(col)
         column_ranker = RankColumns()
-        for col in self.remove_categorys:
+        tmp_remove_categorys = list(self.remove_categorys)
+        for col in tmp_remove_categorys:
             if column_ranker.cal_fpvalue_special_col(X, col) < min_fpvalue:
                 self.remove_categorys.remove(col)
-            print(col, ' ', column_ranker.cal_fpvalue_special_col(X, col))
         return self
 
     def transform(self, X, y = None):
