@@ -1,0 +1,2 @@
+- Category columns: Should remove those columns which the mode is dominant 95%
+                    Careful with filldata

@@ -1,4 +1,5 @@
 from sklearn.base import BaseEstimator, RegressorMixin
+import copy
 
 class SMWrapper(BaseEstimator, RegressorMixin):
     """ A universal sklearn-style wrapper for statsmodels regressors """
@@ -7,7 +8,9 @@ class SMWrapper(BaseEstimator, RegressorMixin):
         self.select_cols = select_cols
 
     def fit(self, X, y = None):
-        self.results_ = self.model_.fit(self.select_cols)
+        self.new_model_ = copy.deepcopy(self.model_)
+        self.new_model_.data = X #change the data
+        self.result_fit = self.new_model_.fit(self.select_cols)
 
     def predict(self, X):
-        return self.results_.predict(X[self.select_cols])
+        return self.result_fit.predict(X[self.select_cols])

@@ -1,4 +1,5 @@
-
+import warnings
+warnings.simplefilter("ignore")
 import pandas as pd
 import os
 import sys
@@ -19,7 +20,7 @@ logger = logging.getLogger("test_selection")
 def preprocess(train_pd):
     null_imputer = NullImputer()
     remove_imputer = RemovelColsImputer()
-    imputer = Pipeline([('null_imputer', null_imputer), ('remove_imputer', remove_imputer)])
+    imputer = Pipeline([('null_imputer', null_imputer), ("remove_imputer", remove_imputer)])
     return imputer.fit(train_pd)
 
 def find_list_category_columns(X):
@@ -42,15 +43,16 @@ def select_features_step(train_pd, model_, strategy):
     select_tool = SelectionFeatures(model_)
     return select_tool.select_features(strategy)
 
-def cv_process(list_cols_combine, model_):
+def cv_process(results_fit, model_):
     selected_cols = []
-    for cols, model in list_cols_combine:
+    for result_fit in results_fit:
+        cols, result_ = result_fit.cols, result_fit.result_
         cv_model = SMWrapper(model_, cols)
         cv = ShuffleSplit(n_splits=10, random_state=0)
         score = make_scorer(mean_squared_log_error, greater_is_better=False)
         cv_score = -np.mean(cross_val_score(cv_model, model_.data, model_.data[model_.target_col], cv=cv, scoring=score))
         logger.info(f"With {cols} - number_features = {len(cols)} - cv_score: {cv_score}")
-        selected_cols.append((cols, model, cv_score))
+        selected_cols.append((cols, result_, cv_score))
 
     return min(selected_cols, key=lambda v : v[2])
 
@@ -65,8 +67,8 @@ def process(model_class):
     imputer = preprocess(train_pd)
     train_pd = imputer.transform(train_pd)
     model_ = get_model(model_class, train_pd)
-    list_cols_combine = select_features_step(train_pd, model_, "mix")
-    selection = cv_process(list_cols_combine, model_)
+    results_fit = select_features_step(train_pd, model_, "mix")
+    selection = cv_process(results_fit, model_)
     final_cols, final_model = selection[:2]
 
     logger.info(f"Final results: With cols = {selection[0]} - number_features = {len(selection[0])} - cv_score: {np.sqrt(selection[2])}")
