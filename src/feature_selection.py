@@ -1,115 +1,4 @@
-import scipy.stats as stats
-import numpy as np
-import logging
-import re
-from pandas import DataFrame
-from statsmodels.formula.api import ols
-from statsmodels.stats.api import anova_lm
-from sklearn.metrics import mean_squared_log_error, mean_squared_error, make_scorer
-from code_preprocessing.cv_model import SMWrapper
-from sklearn.model_selection import cross_val_score, ShuffleSplit
-
-class MyAnova:
-    def __init__(self):
-        pass
-
-    @staticmethod
-    def anova_lm(model_, result_fit1, result_fit2, scale = None):
-        test = 'F'
-        pr_test = 'p_fvalue'
-        names = ['df_resid', 'ssr', 'df_diff', 'ss_diff', test, pr_test]
-        table = DataFrame(np.zeros((2, 6)), columns=names)
-        table["ssr"] = [model_.rss(mdl) for mdl in [result_fit1, result_fit2]]
-        table["df_resid"] = [model_.df_residual(mdl) for mdl in [result_fit1, result_fit2]]
-
-        if not scale: # assume biggest model is last
-            scale = table['ssr'].iloc[-1] / table['df_resid'].iloc[-1]
-
-        table.loc[table.index[1:], "df_diff"] = -np.diff(table["df_resid"].values)
-        table["ss_diff"] = -table["ssr"].diff()
-        if test == "F":
-            table["F"] = table["ss_diff"] / table["df_diff"] / scale
-            table[pr_test] = stats.f.sf(table["F"], table["df_diff"],
-                                        table["df_resid"])
-            table[pr_test][table['F'].isnull()] = np.nan
-        return table
-
-class ResultFit:
-    def __init__(self, result_, cols):
-        self.result_ = result_
-        self.cols = cols
-
-    def predict(self, X):
-        return self.result_.predict(X)
-
-class ModelAbstract:
-    def __init__(self, data, predictor_cols, target_col, col_levels):
-        self.data = data
-        self.predictor_cols = predictor_cols
-        self.target_col = target_col
-        self.col_levels = col_levels
-        self.tss = np.var(data[target_col]) * len(data)
-        self.nobs = len(data)
-        self.history_cvscore  = {}
-
-
-    def fit(self, predictors_col, target_col):
-        pass
-
-    def score(self, result_fit):
-        pass
-
-    def rss(self, result_fit):
-        pass
-
-    def df_residual(self, result_fit):
-        pass
-
-    def cv_score(self, result_fit):
-        if result_fit is None:
-            return self.tss
-        if tuple(result_fit.cols) in self.history_cvscore:
-            return self.history_cvscore[tuple(result_fit.cols)]
-        cv_model = SMWrapper(self, result_fit.cols)
-        cv = ShuffleSplit(n_splits=5, random_state=0)
-        cv_score = -np.mean(cross_val_score(cv_model, self.data, self.data[self.target_col], cv=cv, scoring="neg_mean_squared_error"))
-        self.history_cvscore[tuple(result_fit.cols)] = cv_score * self.nobs
-        return cv_score * self.nobs
-
-    def get_p_fvalue(self, result_fit1, result_fit2):
-        return MyAnova.anova_lm(self, result_fit1, result_fit2)['p_fvalue'].iloc[1]
-
-class ModelOLSStats(ModelAbstract):
-    def __init__(self, data , predictor_cols, target_col, col_levels):
-        super().__init__(data , predictor_cols, target_col, col_levels)
-        self.name = 'stats_ols'
-
-    def fit(self, cols):
-        formula = f'{self.target_col} ~ '
-        predictors_pattern = [col if len(self.col_levels[col]) == 0 else f'C({col}, levels={self.col_levels[col]})' for col in cols]
-        formula = f'{self.target_col} ~ ' + '+'.join(predictors_pattern)
-        return ResultFit(ols(formula, self.data).fit(), cols)
-
-    def score(self, result_fit):
-        if result_fit is None:
-            return float('inf')
-        actual_value = self.data[self.target_col]
-        predict_value = result_fit.predict(self.data)
-        return mean_squared_log_error(actual_value, predict_value)
-
-    def rss(self, result_fit):
-        if result_fit is None:
-            return self.tss
-        else:
-            return result_fit.result_.ssr
-
-    def df_residual(self, result_fit):
-        if result_fit is None:
-            return self.nobs - 1
-        else:
-            return result_fit.result_.df_resid 
-        
-
+from src.models import *
 
 class SelectionFeatures:
     min_pvalue = 0.05
@@ -181,9 +70,9 @@ class SelectionFeatures:
             test_list = current_list + [col]
             result_fit = self.fit_model(stats_model, test_list)
             if result_fit is not None:
-                crit = self.get_criterion_value(stats_model, current_result_fit, result_fit)
-                if self.satisfy_lowerber(crit):
-                    candidates.append((col, result_fit))
+                #crit = self.get_criterion_value(stats_model, current_result_fit, result_fit)
+                #if self.satisfy_lowerber(crit):
+                candidates.append((col, result_fit))
         best_col, best_result_fit = self.select_best_from(stats_model, candidates)
         if self.first_result_better(stats_model, best_result_fit, current_result_fit):
             self.logger.info(f"Select feature {best_col} with imporve rss = {stats_model.score(best_result_fit)}")

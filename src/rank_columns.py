@@ -22,12 +22,7 @@ class RankColumns:
         rank_category = self.rank_category_columns(X, y, category_cols)
         rank_quanlitative = self.rank_quanlitative_columns(X, y, quanlitative_cols)
 
-    # def rank_category_columns(self, X, y, category_cols):
-
-    #     for col in category_cols:
-    #         if (X[col].value_counts[0] / X.shape[0]) > max_ratio_cat:
-
-                
+    
 
 
 

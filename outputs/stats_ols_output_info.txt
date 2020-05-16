@@ -1,0 +1,1 @@
+Final results: With cols = ['OverallQual', 'Neighborhood', 'GrLivArea', 'OverallCond', 'YearBuilt', 'MSSubClass', 'GarageCars', 'BsmtExposure', 'SaleCondition', 'LotArea', 'KitchenQual', 'BsmtFinType1', 'ScreenPorch', 'BsmtQual', 'WoodDeckSF'] - number_features = 15 - cv_score: 0.13865087860729516
